@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Snoopy Santa in ASCII</title>
+<style>
+html,body{margin:0;height:100%;background:#000}
+body{display:flex;align-items:center;justify-content:center}
+canvas{display:block;max-width:100%;max-height:100vh}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+"use strict";
+const S=2; // render at 2x so the letters stay sharp
+const MONO='Consolas,Menlo,"DejaVu Sans Mono","Courier New",monospace';
+const mk=(w,h)=>{const e=document.createElement("canvas");e.width=w;e.height=h;return e};
+
+fetch("/frames.json").then(r=>r.json()).then(d=>{
+  const W=d.cols*d.cw*S,H=d.rows*d.ch*S,cv=document.getElementById("c"),ctx=cv.getContext("2d");
+  cv.width=W;cv.height=H;
+
+  // draw every frame once into its own canvas (letters + a soft glow)
+  const imgs=d.frames.map(f=>{
+    const e=mk(W,H),g=e.getContext("2d"),rows=f.t.split("\n");
+    g.fillStyle="#000";g.fillRect(0,0,W,H);
+    g.font=`bold ${15*S}px ${MONO}`;g.textAlign="center";g.textBaseline="middle";
+    for(let y=0;y<d.rows;y++)for(let x=0;x<d.cols;x++){
+      const ch=rows[y][x];if(ch===" ")continue;
+      const i=(y*d.cols+x)*3,c=f.c.substr(i,3);
+      g.fillStyle="rgb("+[0,1,2].map(j=>parseInt(c[j],16)*17)+")";
+      g.fillText(ch,(x+.5)*d.cw*S,(y+.5)*d.ch*S+S);
+    }
+    const q=mk(W>>2,H>>2),qc=q.getContext("2d");
+    try{qc.filter="blur(2px)"}catch(_){}
+    qc.drawImage(e,0,0,W>>2,H>>2);
+    g.globalCompositeOperation="lighter";g.globalAlpha=.6;g.drawImage(q,0,0,W,H);
+    return e;
+  });
+
+  // play them with the GIF's own timing
+  let i=0,next=performance.now(),paused=false;
+  function loop(now){
+    requestAnimationFrame(loop);
+    if(paused||now<next)return;
+    ctx.drawImage(imgs[i],0,0);
+    next=now+d.delays[i];
+    i=(i+1)%imgs.length;
+  }
+  requestAnimationFrame(loop);
+  cv.addEventListener("click",()=>{paused=!paused});
+  addEventListener("keydown",e=>{if(e.code==="Space"){paused=!paused;e.preventDefault()}});
+});
+</script>
+</body>
+</html>
